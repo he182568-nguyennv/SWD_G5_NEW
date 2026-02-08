@@ -1,3 +1,11 @@
+# This is course project of G5 : Vehicle Plate System
+
+###  Software Design and Architecture 392 (SWD392)
+
+### By tritd
+
+---
+
 ## Install IntellIJ (Community or Enterprise)
 
 https://www.jetbrains.com/idea/download/?section=windows
