@@ -1,49 +1,37 @@
 package Model;
 
 public class User {
-    private String id;
+    private int id;
     private String fullName;
-    private int gender;
-    private int age;
-    private String address;
-    private String account;
-    private String password;
-    private Role roleId;
+    private String username;
+    private String email;
+    private String phone;
+    private String passwordHash;
+    private String createdAt;
+    private int roleId;
+    private boolean isActive;
 
-    public User(String id, String fullName, int gender, int age, String address, String account, String password, Role roleId) {
+
+    public User(int id, String fullName, String username, String email, String phone, String passwordHash, String createdAt, int roleId, boolean isActive) {
         this.id = id;
         this.fullName = fullName;
-        this.gender = gender;
-        this.age = age;
-        this.address = address;
-        this.account = account;
-        this.password = password;
+        this.username = username;
+        this.email = email;
+        this.phone = phone;
+        this.passwordHash = passwordHash;
+        this.createdAt = createdAt;
         this.roleId = roleId;
+        this.isActive = isActive;
     }
 
-    public User(String id, String fullName, int gender, int age, String address, String account, String password) {
-        this.id = id;
-        this.fullName = fullName;
-        this.gender = gender;
-        this.age = age;
-        this.address = address;
-        this.account = account;
-        this.password = password;
+    public User() {
     }
 
-    public Role getRoleId() {
-        return roleId;
-    }
-
-    public void setRoleId(Role roleId) {
-        this.roleId = roleId;
-    }
-
-    public String getId() {
+    public int getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(int id) {
         this.id = id;
     }
 
@@ -55,44 +43,60 @@ public class User {
         this.fullName = fullName;
     }
 
-    public int getGender() {
-        return gender;
+    public String getUsername() {
+        return username;
     }
 
-    public void setGender(int gender) {
-        this.gender = gender;
+    public void setUsername(String username) {
+        this.username = username;
     }
 
-    public int getAge() {
-        return age;
+    public String getEmail() {
+        return email;
     }
 
-    public void setAge(int age) {
-        this.age = age;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
-    public String getAddress() {
-        return address;
+    public String getPhone() {
+        return phone;
     }
 
-    public void setAddress(String address) {
-        this.address = address;
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
-    public String getAccount() {
-        return account;
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
-    public void setAccount(String account) {
-        this.account = account;
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
-    public String getPassword() {
-        return password;
+    public String getCreatedAt() {
+        return createdAt;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public int getRoleId() {
+        return roleId;
+    }
+
+    public void setRoleId(int roleId) {
+        this.roleId = roleId;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
     }
 }
 
