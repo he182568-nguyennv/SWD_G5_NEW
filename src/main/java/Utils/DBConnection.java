@@ -8,7 +8,7 @@ public class DBConnection {
 
     private static final String DB_PATH = System.getProperty(
             "vpt.db.path",
-            "/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/db_swd.sqlite"
+            System.getProperty("user.dir") + "/db_swd.sqlite"
     );
     private static final String URL = "jdbc:sqlite:" + DB_PATH;
 

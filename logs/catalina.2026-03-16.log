@@ -434,3 +434,47 @@
 16-Mar-2026 15:19:37.629 WARNING [Thread-1] org.apache.catalina.loader.WebappClassLoaderBase.clearReferencesJdbc The web application [api] registered the JDBC driver [org.sqlite.JDBC] but failed to unregister it when the web application was stopped. To prevent a memory leak, the JDBC Driver has been forcibly unregistered.
 16-Mar-2026 15:19:37.646 INFO [Thread-1] org.apache.coyote.AbstractProtocol.stop Stopping ProtocolHandler ["http-nio-8080"]
 16-Mar-2026 15:19:37.652 INFO [Thread-1] org.apache.coyote.AbstractProtocol.destroy Destroying ProtocolHandler ["http-nio-8080"]
+16-Mar-2026 15:52:10.115 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Server version name:   Apache Tomcat/10.1.52
+16-Mar-2026 15:52:10.121 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Server built:          Jan 23 2026 19:29:07 UTC
+16-Mar-2026 15:52:10.121 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Server version number: 10.1.52.0
+16-Mar-2026 15:52:10.121 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log OS Name:               Linux
+16-Mar-2026 15:52:10.122 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log OS Version:            6.17.0-14-generic
+16-Mar-2026 15:52:10.122 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Architecture:          amd64
+16-Mar-2026 15:52:10.122 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Java Home:             /usr/lib/jvm/java-21-openjdk-amd64
+16-Mar-2026 15:52:10.122 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log JVM Version:           21.0.10+7-Ubuntu-124.04
+16-Mar-2026 15:52:10.122 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log JVM Vendor:            Ubuntu
+16-Mar-2026 15:52:10.122 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log CATALINA_BASE:         /media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW
+16-Mar-2026 15:52:10.123 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log CATALINA_HOME:         /home/van-nguyen/tomcat/apache-tomcat-10.1.52
+16-Mar-2026 15:52:10.130 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: --add-opens=java.base/java.lang=ALL-UNNAMED
+16-Mar-2026 15:52:10.130 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: --add-opens=java.base/java.io=ALL-UNNAMED
+16-Mar-2026 15:52:10.130 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: --add-opens=java.base/java.util=ALL-UNNAMED
+16-Mar-2026 15:52:10.131 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+16-Mar-2026 15:52:10.131 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: --add-opens=java.rmi/sun.rmi.transport=ALL-UNNAMED
+16-Mar-2026 15:52:10.131 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Dvpt.db.path=/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/db_swd.sqlite
+16-Mar-2026 15:52:10.131 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Dcatalina.home=/home/van-nguyen/tomcat/apache-tomcat-10.1.52
+16-Mar-2026 15:52:10.131 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Dcatalina.base=/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW
+16-Mar-2026 15:52:10.131 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Djava.io.tmpdir=/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/temp
+16-Mar-2026 15:52:10.132 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Djava.util.logging.config.file=/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/conf/logging.properties
+16-Mar-2026 15:52:10.132 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Djava.util.logging.manager=org.apache.juli.ClassLoaderLogManager
+16-Mar-2026 15:52:10.132 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -javaagent:/snap/intellij-idea/42/lib/idea_rt.jar=42825
+16-Mar-2026 15:52:10.132 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Dfile.encoding=UTF-8
+16-Mar-2026 15:52:10.132 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Dsun.stdout.encoding=UTF-8
+16-Mar-2026 15:52:10.133 INFO [main] org.apache.catalina.startup.VersionLoggerListener.log Command line argument: -Dsun.stderr.encoding=UTF-8
+16-Mar-2026 15:52:10.136 INFO [main] org.apache.catalina.core.AprLifecycleListener.lifecycleEvent The Apache Tomcat Native library which allows using OpenSSL was not found on the java.library.path: [/usr/java/packages/lib:/usr/lib/x86_64-linux-gnu/jni:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib/jni:/lib:/usr/lib]
+16-Mar-2026 15:52:10.436 INFO [main] org.apache.coyote.AbstractProtocol.init Initializing ProtocolHandler ["http-nio-8080"]
+16-Mar-2026 15:52:10.455 INFO [main] org.apache.catalina.startup.Catalina.load Server initialization in [536] milliseconds
+16-Mar-2026 15:52:10.495 INFO [main] org.apache.catalina.core.StandardService.startInternal Starting service [Catalina]
+16-Mar-2026 15:52:10.495 INFO [main] org.apache.catalina.core.StandardEngine.startInternal Starting Servlet engine: [Apache Tomcat/10.1.52]
+16-Mar-2026 15:52:10.504 INFO [main] org.apache.catalina.startup.HostConfig.deployDescriptor Deploying deployment descriptor [/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/conf/Catalina/localhost/api.xml]
+16-Mar-2026 15:52:10.894 INFO [main] org.apache.jasper.servlet.TldScanner.scanJars At least one JAR was scanned for TLDs yet contained no TLDs. Enable debug logging for this logger for a complete list of JARs that were scanned but no TLDs were found in them. Skipping unneeded JARs during scanning can improve startup time and JSP compilation time.
+16-Mar-2026 15:52:10.920 INFO [main] org.apache.catalina.startup.HostConfig.deployDescriptor Deployment of deployment descriptor [/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/conf/Catalina/localhost/api.xml] has finished in [417] ms
+16-Mar-2026 15:52:10.921 INFO [main] org.apache.catalina.startup.HostConfig.deployWAR Deploying web application archive [/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/webapps/demo-servlet.war]
+16-Mar-2026 15:52:10.993 INFO [main] org.apache.jasper.servlet.TldScanner.scanJars At least one JAR was scanned for TLDs yet contained no TLDs. Enable debug logging for this logger for a complete list of JARs that were scanned but no TLDs were found in them. Skipping unneeded JARs during scanning can improve startup time and JSP compilation time.
+16-Mar-2026 15:52:10.996 INFO [main] org.apache.catalina.startup.HostConfig.deployWAR Deployment of web application archive [/media/van-nguyen/Ubuntu-2/Code/group-project/SWD_G5_NEW/webapps/demo-servlet.war] has finished in [75] ms
+16-Mar-2026 15:52:11.001 INFO [main] org.apache.coyote.AbstractProtocol.start Starting ProtocolHandler ["http-nio-8080"]
+16-Mar-2026 15:52:11.010 INFO [main] org.apache.catalina.startup.Catalina.start Server startup in [554] milliseconds
+16-Mar-2026 17:29:21.801 INFO [Thread-1] org.apache.coyote.AbstractProtocol.pause Pausing ProtocolHandler ["http-nio-8080"]
+16-Mar-2026 17:29:21.804 INFO [Thread-1] org.apache.catalina.core.StandardService.stopInternal Stopping service [Catalina]
+16-Mar-2026 17:29:21.814 WARNING [Thread-1] org.apache.catalina.loader.WebappClassLoaderBase.clearReferencesJdbc The web application [api] registered the JDBC driver [org.sqlite.JDBC] but failed to unregister it when the web application was stopped. To prevent a memory leak, the JDBC Driver has been forcibly unregistered.
+16-Mar-2026 17:29:21.827 INFO [Thread-1] org.apache.coyote.AbstractProtocol.stop Stopping ProtocolHandler ["http-nio-8080"]
+16-Mar-2026 17:29:21.839 INFO [Thread-1] org.apache.coyote.AbstractProtocol.destroy Destroying ProtocolHandler ["http-nio-8080"]
