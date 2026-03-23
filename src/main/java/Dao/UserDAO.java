@@ -1,14 +1,16 @@
 package Dao;
 
+
+
 import Model.User;
 import Utils.DBConnection;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 
 public class UserDAO {
+
     private User mapRow(ResultSet rs) throws SQLException {
         User u = new User();
         u.setId(rs.getInt("user_id"));
@@ -106,5 +108,35 @@ public class UserDAO {
             ps.setInt(1, id);
             return ps.executeUpdate() > 0;
         }
+    }
+
+    public int countByRole(int roleId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM users WHERE role_id=? AND is_active=1";
+        try (Connection c = DBConnection.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, roleId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public List<User> findAllFiltered(Integer roleId, String search) throws SQLException {
+        List<User> list = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("SELECT * FROM users WHERE 1=1");
+        if (roleId != null && roleId > 0) sql.append(" AND role_id=").append(roleId);
+        if (search != null && !search.isBlank()) {
+            String s = search.replace("'", "''");
+            sql.append(" AND (full_name LIKE '%").append(s).append("%'")
+               .append(" OR username LIKE '%").append(s).append("%'")
+               .append(" OR email LIKE '%").append(s).append("%')");
+        }
+        sql.append(" ORDER BY created_at DESC");
+        try (Connection c = DBConnection.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(sql.toString())) {
+            while (rs.next()) list.add(mapRow(rs));
+        }
+        return list;
     }
 }

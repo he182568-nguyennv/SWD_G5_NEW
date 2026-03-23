@@ -3,6 +3,7 @@ package Controller;
 import Dao.ParkingSessionDAO;
 import Model.ParkingSession;
 import Utils.JsonUtil;
+
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -55,14 +56,14 @@ public class CheckInServlet extends HttpServlet {
             int sid = sessionDAO.checkIn(s);
             resp.setStatus(HttpServletResponse.SC_OK);
             resp.getWriter().write(
-                    "{\"success\":true," +
-                            "\"sessionId\":" + sid + "," +
-                            "\"plateNumber\":\"" + JsonUtil.escape(plateNumber) + "\"," +
-                            "\"lotId\":" + lotId + "," +
-                            "\"cardId\":" + cardId + "," +
-                            "\"staffCheckinId\":" + staffId + "," +
-                            "\"checkinTime\":\"" + java.time.LocalDateTime.now() + "\"," +
-                            "\"status\":\"active\"}"
+                "{\"success\":true," +
+                "\"sessionId\":" + sid + "," +
+                "\"plateNumber\":\"" + JsonUtil.escape(plateNumber) + "\"," +
+                "\"lotId\":" + lotId + "," +
+                "\"cardId\":" + cardId + "," +
+                "\"staffCheckinId\":" + staffId + "," +
+                "\"checkinTime\":\"" + java.time.LocalDateTime.now() + "\"," +
+                "\"status\":\"active\"}"
             );
         } catch (Exception e) {
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);

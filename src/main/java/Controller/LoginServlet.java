@@ -1,6 +1,7 @@
 package Controller;
 
 
+
 import Dao.UserDAO;
 import Model.User;
 import Utils.JsonUtil;
@@ -9,14 +10,11 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.security.MessageDigest;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 @WebServlet("/login")
 public class LoginServlet extends HttpServlet {
 
     private final UserDAO userDAO = new UserDAO();
-
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -25,16 +23,16 @@ public class LoginServlet extends HttpServlet {
 
         String username = null;
         String password = null;
-        System.out.println("[DB] user.dir = " + System.getProperty("user.dir"));
+
         try {
             String contentType = req.getContentType();
             System.out.println("[LOGIN] Content-Type: " + contentType);
 
             if (contentType != null && contentType.contains("application/json")) {
-                String body = req.getReader().lines().collect(java.util.stream.Collectors.joining());
-                JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-                username = json.get("username").getAsString();
-                password = json.get("password").getAsString();
+                String body = JsonUtil.readBody(req);
+                System.out.println("[LOGIN] Body: " + body);
+                username = JsonUtil.getString(body, "username");
+                password = JsonUtil.getString(body, "password");
             } else {
                 username = req.getParameter("username");
                 password = req.getParameter("password");
@@ -55,13 +53,13 @@ public class LoginServlet extends HttpServlet {
                 String token = JwtUtil.generateToken(user.getId(), user.getUsername(), user.getRoleId());
                 resp.setStatus(HttpServletResponse.SC_OK);
                 resp.getWriter().write(
-                        "{\"success\":true," +
-                                "\"token\":\"" + token + "\"," +
-                                "\"userId\":" + user.getId() + "," +
-                                "\"username\":\"" + JsonUtil.escape(user.getUsername()) + "\"," +
-                                "\"fullName\":\"" + JsonUtil.escape(user.getFullName()) + "\"," +
-                                "\"roleId\":" + user.getRoleId() + "," +
-                                "\"role\":\"" + getRoleName(user.getRoleId()) + "\"}"
+                    "{\"success\":true," +
+                    "\"token\":\"" + token + "\"," +
+                    "\"userId\":" + user.getId() + "," +
+                    "\"username\":\"" + JsonUtil.escape(user.getUsername()) + "\"," +
+                    "\"fullName\":\"" + JsonUtil.escape(user.getFullName()) + "\"," +
+                    "\"roleId\":" + user.getRoleId() + "," +
+                    "\"role\":\"" + getRoleName(user.getRoleId()) + "\"}"
                 );
             } else {
                 resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

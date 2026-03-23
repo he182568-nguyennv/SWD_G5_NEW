@@ -1,5 +1,7 @@
 package Controller;
 
+
+import Dao.ParkingSessionDAO;
 import Dao.ReportDAO;
 import Model.Report;
 import Utils.JsonUtil;
@@ -11,92 +13,119 @@ import java.util.List;
 @WebServlet("/reports")
 public class ReportServlet extends HttpServlet {
 
-    private final ReportDAO reportDAO = new ReportDAO();
+    private final ReportDAO reportDAO  = new ReportDAO();
+    private final ParkingSessionDAO sessionDAO = new ParkingSessionDAO();
 
+    // ── GET /reports  (manager: all | staff: pending | customer: own) ──
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        int userId = (int) req.getAttribute("jwtUserId");
         int roleId = (int) req.getAttribute("jwtRoleId");
+        int userId = (int) req.getAttribute("jwtUserId");
 
         try {
-            List<Report> reports = (roleId == 1)
-                    ? reportDAO.findPending()
-                    : reportDAO.findByReporter(userId);
+            List<Report> list;
+            if (roleId == 1) {
+                String statusParam = req.getParameter("status");
+                list = (statusParam != null && !statusParam.isBlank())
+                    ? reportDAO.findPending()    // pending
+                    : reportDAO.findAll();
+            } else if (roleId == 2) {
+                list = reportDAO.findPending();  // staff sees pending only
+            } else {
+                list = reportDAO.findByReporter(userId);
+            }
 
             StringBuilder sb = new StringBuilder("{\"success\":true,\"data\":[");
-            for (int i = 0; i < reports.size(); i++) {
-                Report r = reports.get(i);
+            for (int i = 0; i < list.size(); i++) {
                 if (i > 0) sb.append(",");
-                sb.append("{")
-                        .append("\"reportId\":").append(r.getReportId()).append(",")
-                        .append("\"reporterId\":").append(r.getReporterId()).append(",")
-                        .append("\"vehicleId\":").append(r.getVehicleId()).append(",")
-                        .append("\"sessionId\":").append(r.getSessionId()).append(",")
-                        .append("\"reporterName\":\"").append(JsonUtil.escape(r.getReporterName())).append("\",")
-                        .append("\"reporterPhone\":\"").append(JsonUtil.escape(r.getReporterPhone())).append("\",")
-                        .append("\"reportType\":\"").append(JsonUtil.escape(r.getReportType())).append("\",")
-                        .append("\"notes\":\"").append(JsonUtil.escape(r.getNotes())).append("\",")
-                        .append("\"status\":\"").append(JsonUtil.escape(r.getStatus())).append("\",")
-                        .append("\"createdAt\":\"").append(JsonUtil.escape(r.getCreatedAt())).append("\"")
-                        .append("}");
+                sb.append(toJson(list.get(i)));
             }
             sb.append("]}");
-            resp.setStatus(HttpServletResponse.SC_OK);
+            resp.setStatus(200);
             resp.getWriter().write(sb.toString());
+
         } catch (Exception e) {
-            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            resp.setStatus(500);
             resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
         }
     }
 
+    // ── POST /reports  action=create | action=approve ──────────
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
         resp.setContentType("application/json;charset=UTF-8");
-        int userId = (int) req.getAttribute("jwtUserId");
         int roleId = (int) req.getAttribute("jwtRoleId");
+        int userId = (int) req.getAttribute("jwtUserId");
+        String jwtUsername = (String) req.getAttribute("jwtUsername");
 
         try {
             String body   = JsonUtil.readBody(req);
             String action = JsonUtil.getString(body, "action");
 
-            if ("create".equals(action)) {
-                Report r = new Report();
-                r.setReporterId(userId);
-                r.setVehicleId(JsonUtil.getInt(body, "vehicleId", 0));
-                r.setSessionId(JsonUtil.getInt(body, "sessionId", 0));
-                r.setReportType(JsonUtil.getString(body, "reportType"));
-                r.setNotes(JsonUtil.getString(body, "notes"));
-                int id = reportDAO.insert(r);
-                resp.setStatus(HttpServletResponse.SC_CREATED);
-                resp.getWriter().write("{\"success\":true,\"reportId\":" + id + ",\"status\":\"pending\"}");
-
-            } else if ("approve".equals(action)) {
-                if (roleId != 1) {
-                    resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    resp.getWriter().write("{\"success\":false,\"message\":\"Chỉ manager mới được duyệt\"}");
-                    return;
-                }
+            // ── Duyệt report (manager only) ─────────────────────
+            if ("approve".equals(action)) {
+                if (roleId != 1) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return; }
                 int    reportId = JsonUtil.getInt(body, "reportId", -1);
                 String decision = JsonUtil.getString(body, "decision");
                 String note     = JsonUtil.getString(body, "note");
-                if (reportId < 0 || decision == null) {
-                    resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    resp.getWriter().write("{\"success\":false,\"message\":\"Thiếu reportId hoặc decision\"}");
-                    return;
-                }
-                reportDAO.approve(reportId, userId, decision, note);
-                resp.setStatus(HttpServletResponse.SC_OK);
+                if (reportId < 0 || decision == null) { resp.setStatus(400); resp.getWriter().write("{\"success\":false,\"message\":\"Missing reportId or decision\"}"); return; }
+                reportDAO.approve(reportId, userId, decision, note != null ? note : "");
+                resp.setStatus(200);
                 resp.getWriter().write("{\"success\":true,\"reportId\":" + reportId + ",\"decision\":\"" + JsonUtil.escape(decision) + "\"}");
-
-            } else {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Action không hợp lệ\"}");
+                return;
             }
+
+            // ── Tạo report (customer hoặc staff) ────────────────
+            int    vehicleId  = JsonUtil.getInt(body, "vehicleId", 0);
+            int    sessionId  = JsonUtil.getInt(body, "sessionId", -1);
+            String reportType = JsonUtil.getString(body, "reportType");
+            String notes      = JsonUtil.getString(body, "notes");
+
+            if (sessionId < 0 || reportType == null) {
+                resp.setStatus(400);
+                resp.getWriter().write("{\"success\":false,\"message\":\"Missing sessionId or reportType\"}");
+                return;
+            }
+
+            // Lấy tên người báo từ body hoặc fallback lấy từ JWT username
+            String reporterName  = JsonUtil.getString(body, "reporterName");
+            String reporterPhone = JsonUtil.getString(body, "reporterPhone");
+            if (reporterName == null || reporterName.isBlank())
+                reporterName = jwtUsername != null ? jwtUsername : "Unknown";
+
+            Report r = new Report();
+            r.setReporterId(userId);
+            r.setVehicleId(vehicleId);
+            r.setSessionId(sessionId);
+            r.setReporterName(reporterName);
+            r.setReporterPhone(reporterPhone != null ? reporterPhone : "");
+            r.setReportType(reportType);
+            r.setNotes(notes != null ? notes : "");
+
+            int newId = reportDAO.insert(r);
+            resp.setStatus(201);
+            resp.getWriter().write("{\"success\":true,\"reportId\":" + newId + "}");
+
         } catch (Exception e) {
-            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            resp.setStatus(500);
             resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
         }
+    }
+
+    private String toJson(Report r) {
+        return "{" +
+            "\"reportId\":"     + r.getReportId()                           + "," +
+            "\"reporterId\":"   + r.getReporterId()                         + "," +
+            "\"vehicleId\":"    + r.getVehicleId()                          + "," +
+            "\"sessionId\":"    + r.getSessionId()                          + "," +
+            "\"reporterName\":\"" + JsonUtil.escape(r.getReporterName())    + "\"," +
+            "\"reporterPhone\":\"" + JsonUtil.escape(r.getReporterPhone())  + "\"," +
+            "\"reportType\":\""  + JsonUtil.escape(r.getReportType())       + "\"," +
+            "\"notes\":\""       + JsonUtil.escape(r.getNotes())            + "\"," +
+            "\"status\":\""      + JsonUtil.escape(r.getStatus())           + "\"," +
+            "\"createdAt\":\""   + JsonUtil.escape(r.getCreatedAt())        + "\"" +
+            "}";
     }
 }

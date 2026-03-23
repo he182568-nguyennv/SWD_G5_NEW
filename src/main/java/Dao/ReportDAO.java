@@ -1,5 +1,7 @@
 package Dao;
 
+
+
 import Model.Report;
 import Utils.DBConnection;
 
@@ -86,5 +88,40 @@ public class ReportDAO {
             c.commit();
             return true;
         }
+    }
+
+    public int countByStatus(String status) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM reports WHERE status=?";
+        try (Connection c = DBConnection.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, status);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    public List<Report> findRecent(int limit) throws SQLException {
+        List<Report> list = new ArrayList<>();
+        String sql = "SELECT * FROM reports ORDER BY created_at DESC LIMIT ?";
+        try (Connection c = DBConnection.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapRow(rs));
+            }
+        }
+        return list;
+    }
+
+    public List<Report> findAll() throws SQLException {
+        List<Report> list = new ArrayList<>();
+        String sql = "SELECT * FROM reports ORDER BY created_at DESC";
+        try (Connection c = DBConnection.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) list.add(mapRow(rs));
+        }
+        return list;
     }
 }
