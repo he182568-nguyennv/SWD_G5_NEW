@@ -19,8 +19,8 @@ import java.util.*;
 public class VNPayUtil {
 
     // ── Sandbox config ──────────────────────────────────────────
-    public static final String TMN_CODE    = System.getProperty("vnpay.tmnCode",   "DEMO1234");
-    public static final String HASH_SECRET = System.getProperty("vnpay.hashSecret","vptparkingsecretkey2026");
+    public static final String TMN_CODE    = System.getProperty("vnpay.tmnCode",   "HD54W3JR");
+    public static final String HASH_SECRET = System.getProperty("vnpay.hashSecret","LIK5SUC8VCW3O2490ĐYUD731F3XNYYVK");
     public static final String PAY_URL     = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
     public static final String API_VERSION = "2.1.0";
     public static final String CURRENCY    = "VND";

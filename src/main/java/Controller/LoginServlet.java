@@ -1,11 +1,10 @@
 package Controller;
 
-
-
 import Dao.UserDAO;
 import Model.User;
-import Utils.JsonUtil;
+import Utils.GsonUtil;
 import Utils.JwtUtil;
+import com.google.gson.JsonObject;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -19,20 +18,16 @@ public class LoginServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("application/json;charset=UTF-8");
-
-        String username = null;
-        String password = null;
 
         try {
+            String username, password;
             String contentType = req.getContentType();
             System.out.println("[LOGIN] Content-Type: " + contentType);
 
             if (contentType != null && contentType.contains("application/json")) {
-                String body = JsonUtil.readBody(req);
-                System.out.println("[LOGIN] Body: " + body);
-                username = JsonUtil.getString(body, "username");
-                password = JsonUtil.getString(body, "password");
+                JsonObject body = GsonUtil.parseBody(req);
+                username = GsonUtil.getString(body, "username");
+                password = GsonUtil.getString(body, "password");
             } else {
                 username = req.getParameter("username");
                 password = req.getParameter("password");
@@ -41,8 +36,7 @@ public class LoginServlet extends HttpServlet {
             System.out.println("[LOGIN] username=" + username + " password=" + (password != null ? "***" : "null"));
 
             if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
-                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Thiếu username hoặc password\"}");
+                GsonUtil.error(resp, 400, "Thiếu username hoặc password");
                 return;
             }
 
@@ -51,27 +45,23 @@ public class LoginServlet extends HttpServlet {
 
             if (user != null && user.isActive() && checkPassword(password, user.getPasswordHash())) {
                 String token = JwtUtil.generateToken(user.getId(), user.getUsername(), user.getRoleId());
-                resp.setStatus(HttpServletResponse.SC_OK);
-                resp.getWriter().write(
-                    "{\"success\":true," +
-                    "\"token\":\"" + token + "\"," +
-                    "\"userId\":" + user.getId() + "," +
-                    "\"username\":\"" + JsonUtil.escape(user.getUsername()) + "\"," +
-                    "\"fullName\":\"" + JsonUtil.escape(user.getFullName()) + "\"," +
-                    "\"roleId\":" + user.getRoleId() + "," +
-                    "\"role\":\"" + getRoleName(user.getRoleId()) + "\"}"
-                );
+
+                JsonObject res = new JsonObject();
+                res.addProperty("token",    token);
+                res.addProperty("userId",   user.getId());
+                res.addProperty("username", user.getUsername());
+                res.addProperty("fullName", user.getFullName());
+                res.addProperty("roleId",   user.getRoleId());
+                res.addProperty("role",     getRoleName(user.getRoleId()));
+                GsonUtil.ok(resp, res);
             } else {
-                resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Sai tên đăng nhập hoặc mật khẩu\"}");
+                GsonUtil.error(resp, 401, "Sai tên đăng nhập hoặc mật khẩu");
             }
 
         } catch (Exception e) {
-            // In toàn bộ stack trace ra console để debug
             System.err.println("[LOGIN] ERROR: " + e.getMessage());
             e.printStackTrace();
-            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            resp.getWriter().write("{\"success\":false,\"message\":\"Lỗi server: " + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, "Lỗi server: " + e.getMessage());
         }
     }
 
@@ -89,11 +79,11 @@ public class LoginServlet extends HttpServlet {
     }
 
     private String getRoleName(int roleId) {
-        switch (roleId) {
-            case 1: return "manager";
-            case 2: return "staff";
-            case 3: return "customer";
-            default: return "unknown";
-        }
+        return switch (roleId) {
+            case 1 -> "manager";
+            case 2 -> "staff";
+            case 3 -> "customer";
+            default -> "unknown";
+        };
     }
 }

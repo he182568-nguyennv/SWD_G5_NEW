@@ -1,9 +1,10 @@
 package Controller;
 
-
 import Dao.PricingRuleDAO;
 import Model.PricingRule;
-import Utils.JsonUtil;
+import Utils.GsonUtil;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -14,75 +15,89 @@ public class PricingRuleServlet extends HttpServlet {
 
     private final PricingRuleDAO dao = new PricingRuleDAO();
 
-    private String toJson(PricingRule r) {
-        return "{" +
-            "\"ruleId\":"         + r.getRuleId()       + "," +
-            "\"lotId\":"          + r.getLotId()         + "," +
-            "\"typeId\":"         + r.getTypeId()        + "," +
-            "\"feeType\":\""      + JsonUtil.escape(r.getFeeType()) + "\"," +
-            "\"pricePerBlock\":"  + r.getPricePerBlock() + "," +
-            "\"blockMinutes\":"   + r.getBlockMinutes()  + "," +
-            "\"maxDailyFee\":"    + r.getMaxDailyFee()   + "," +
-            "\"isNightFee\":"     + r.isNightFee()       + "," +
-            "\"isActive\":"       + r.isActive()         +
-            "}";
+    private JsonObject ruleToJson(PricingRule r) {
+        JsonObject o = new JsonObject();
+        o.addProperty("ruleId",        r.getRuleId());
+        o.addProperty("lotId",         r.getLotId());
+        o.addProperty("typeId",        r.getTypeId());
+        o.addProperty("feeType",       r.getFeeType());
+        o.addProperty("pricePerBlock", r.getPricePerBlock());
+        o.addProperty("blockMinutes",  r.getBlockMinutes());
+        o.addProperty("maxDailyFee",   r.getMaxDailyFee());
+        o.addProperty("isNightFee",    r.isNightFee());
+        o.addProperty("isActive",      r.isActive());
+        return o;
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
-        int role = (int) req.getAttribute("jwtRoleId");
-        if (role != 1) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return; }
+        Object rid = req.getAttribute("jwtRoleId");
+        if (rid == null)    { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+        if ((int) rid != 1) { GsonUtil.error(resp, 403, "Forbidden");    return; }
+
         try {
             List<PricingRule> rules = dao.findAll();
-            StringBuilder sb = new StringBuilder("{\"success\":true,\"data\":[");
-            for (int i = 0; i < rules.size(); i++) {
-                if (i > 0) sb.append(",");
-                sb.append(toJson(rules.get(i)));
-            }
-            sb.append("]}");
-            resp.setStatus(200); resp.getWriter().write(sb.toString());
+            JsonArray arr = new JsonArray();
+            for (PricingRule r : rules) arr.add(ruleToJson(r));
+
+            JsonObject res = new JsonObject();
+            res.add("data", arr);
+            GsonUtil.ok(resp, res);
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("application/json;charset=UTF-8");
-        int role = (int) req.getAttribute("jwtRoleId");
-        if (role != 1) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return; }
+        Object rid = req.getAttribute("jwtRoleId");
+        if (rid == null)    { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+        if ((int) rid != 1) { GsonUtil.error(resp, 403, "Forbidden");    return; }
+
         try {
-            String body   = JsonUtil.readBody(req);
-            String action = JsonUtil.getString(body, "action");
-            int ruleId    = JsonUtil.getInt(body, "ruleId", -1);
+            JsonObject body = GsonUtil.parseBody(req);
+            String action   = GsonUtil.getString(body, "action");
+            int    ruleId   = GsonUtil.getInt(body, "ruleId", -1);
 
             if ("toggle".equals(action)) {
                 dao.toggleActive(ruleId);
-                resp.setStatus(200); resp.getWriter().write("{\"success\":true}");
+                GsonUtil.ok(resp);
                 return;
             }
 
             PricingRule r = new PricingRule();
-            r.setLotId(JsonUtil.getInt(body, "lotId", 1));
-            r.setTypeId(JsonUtil.getInt(body, "typeId", 1));
-            r.setFeeType(JsonUtil.getString(body, "feeType"));
-            r.setPricePerBlock(Double.parseDouble(JsonUtil.getString(body, "pricePerBlock") != null ? JsonUtil.getString(body, "pricePerBlock") : "5000"));
-            r.setBlockMinutes(JsonUtil.getInt(body, "blockMinutes", 60));
-            r.setMaxDailyFee(Double.parseDouble(JsonUtil.getString(body, "maxDailyFee") != null ? JsonUtil.getString(body, "maxDailyFee") : "50000"));
-            r.setNightFee("true".equals(JsonUtil.getString(body, "isNightFee")));
+            r.setLotId(GsonUtil.getInt(body, "lotId", 1));
+            r.setTypeId(GsonUtil.getInt(body, "typeId", 1));
+            r.setFeeType(GsonUtil.getString(body, "feeType"));
+            r.setBlockMinutes(GsonUtil.getInt(body, "blockMinutes", 60));
+            r.setNightFee("true".equals(GsonUtil.getString(body, "isNightFee")));
+
+            // pricePerBlock và maxDailyFee có thể là number hoặc string trong JSON
+            try {
+                r.setPricePerBlock(body.has("pricePerBlock") && !body.get("pricePerBlock").isJsonNull()
+                    ? body.get("pricePerBlock").getAsDouble() : 5000);
+                r.setMaxDailyFee(body.has("maxDailyFee") && !body.get("maxDailyFee").isJsonNull()
+                    ? body.get("maxDailyFee").getAsDouble() : 50000);
+            } catch (Exception ex) {
+                r.setPricePerBlock(5000);
+                r.setMaxDailyFee(50000);
+            }
 
             if ("update".equals(action) && ruleId > 0) {
                 r.setRuleId(ruleId);
                 dao.update(r);
-                resp.setStatus(200); resp.getWriter().write("{\"success\":true,\"ruleId\":" + ruleId + "}");
+                JsonObject res = new JsonObject();
+                res.addProperty("ruleId", ruleId);
+                GsonUtil.ok(resp, res);
             } else {
                 int newId = dao.insert(r);
-                resp.setStatus(201); resp.getWriter().write("{\"success\":true,\"ruleId\":" + newId + "}");
+                JsonObject res = new JsonObject();
+                res.addProperty("ruleId", newId);
+                GsonUtil.created(resp, res);
             }
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 }

@@ -1,11 +1,12 @@
 package Controller;
 
-
 import Dao.StaffScheduleDAO;
 import Dao.UserDAO;
 import Model.StaffSchedule;
 import Model.User;
-import Utils.JsonUtil;
+import Utils.GsonUtil;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -15,31 +16,33 @@ import java.util.List;
 public class StaffScheduleServlet extends HttpServlet {
 
     private final StaffScheduleDAO scheduleDAO = new StaffScheduleDAO();
-    private final UserDAO userDAO = new UserDAO();
+    private final UserDAO          userDAO     = new UserDAO();
 
-    private String toJson(StaffSchedule s, String staffName) {
-        return "{" +
-            "\"scheduleId\":"   + s.getScheduleId() + "," +
-            "\"staffId\":"      + s.getStaffId()    + "," +
-            "\"staffName\":\""  + JsonUtil.escape(staffName != null ? staffName : "") + "\"," +
-            "\"lotId\":"        + s.getLotId()      + "," +
-            "\"workDate\":\""   + JsonUtil.escape(s.getWorkDate())    + "\"," +
-            "\"shiftStart\":\"" + JsonUtil.escape(s.getShiftStart())  + "\"," +
-            "\"shiftEnd\":\""   + JsonUtil.escape(s.getShiftEnd())    + "\"," +
-            "\"status\":\""     + JsonUtil.escape(s.getStatus())      + "\"" +
-            "}";
+    private JsonObject scheduleToJson(StaffSchedule s, String staffName) {
+        JsonObject o = new JsonObject();
+        o.addProperty("scheduleId",  s.getScheduleId());
+        o.addProperty("staffId",     s.getStaffId());
+        o.addProperty("staffName",   staffName != null ? staffName : "");
+        o.addProperty("lotId",       s.getLotId());
+        o.addProperty("workDate",    s.getWorkDate());
+        o.addProperty("shiftStart",  s.getShiftStart());
+        o.addProperty("shiftEnd",    s.getShiftEnd());
+        o.addProperty("status",      s.getStatus());
+        return o;
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
-        int roleId  = (int) req.getAttribute("jwtRoleId");
-        int userId  = (int) req.getAttribute("jwtUserId");
+        Object rid = req.getAttribute("jwtRoleId");
+        Object uid = req.getAttribute("jwtUserId");
+        if (rid == null || uid == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+
+        int roleId = (int) rid;
+        int userId = (int) uid;
 
         try {
             List<StaffSchedule> schedules;
             if (roleId == 1) {
-                // Manager: get all or by staff
                 String staffParam = req.getParameter("staffId");
                 schedules = staffParam != null
                     ? scheduleDAO.findByStaff(Integer.parseInt(staffParam))
@@ -47,57 +50,61 @@ public class StaffScheduleServlet extends HttpServlet {
             } else if (roleId == 2) {
                 schedules = scheduleDAO.findByStaff(userId);
             } else {
-                resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return;
+                GsonUtil.error(resp, 403, "Forbidden"); return;
             }
 
-            StringBuilder sb = new StringBuilder("{\"success\":true,\"data\":[");
-            for (int i = 0; i < schedules.size(); i++) {
-                if (i > 0) sb.append(",");
-                StaffSchedule s = schedules.get(i);
+            JsonArray arr = new JsonArray();
+            for (StaffSchedule s : schedules) {
                 User staff = userDAO.findById(s.getStaffId());
-                sb.append(toJson(s, staff != null ? staff.getFullName() : ""));
+                arr.add(scheduleToJson(s, staff != null ? staff.getFullName() : ""));
             }
-            sb.append("]}");
-            resp.setStatus(200); resp.getWriter().write(sb.toString());
+
+            JsonObject res = new JsonObject();
+            res.add("data", arr);
+            GsonUtil.ok(resp, res);
+
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("application/json;charset=UTF-8");
-        int roleId = (int) req.getAttribute("jwtRoleId");
-        if (roleId != 1) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return; }
+        Object rid = req.getAttribute("jwtRoleId");
+        if (rid == null)    { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+        if ((int) rid != 1) { GsonUtil.error(resp, 403, "Forbidden");    return; }
 
         try {
-            String body   = JsonUtil.readBody(req);
-            String action = JsonUtil.getString(body, "action");
+            JsonObject body = GsonUtil.parseBody(req);
+            String action   = GsonUtil.getString(body, "action");
 
             if ("updateStatus".equals(action)) {
-                int scheduleId = JsonUtil.getInt(body, "scheduleId", -1);
-                String status  = JsonUtil.getString(body, "status");
+                int scheduleId = GsonUtil.getInt(body, "scheduleId", -1);
+                String status  = GsonUtil.getString(body, "status");
                 scheduleDAO.updateStatus(scheduleId, status);
-                resp.setStatus(200); resp.getWriter().write("{\"success\":true}");
+                GsonUtil.ok(resp);
                 return;
             }
 
-            // Create new schedule
             StaffSchedule s = new StaffSchedule();
-            s.setStaffId(JsonUtil.getInt(body, "staffId", -1));
-            s.setLotId(JsonUtil.getInt(body, "lotId", 1));
-            s.setWorkDate(JsonUtil.getString(body, "workDate"));
-            s.setShiftStart(JsonUtil.getString(body, "shiftStart"));
-            s.setShiftEnd(JsonUtil.getString(body, "shiftEnd"));
+            s.setStaffId(GsonUtil.getInt(body, "staffId", -1));
+            s.setLotId(GsonUtil.getInt(body, "lotId", 1));
+            s.setWorkDate(GsonUtil.getString(body, "workDate"));
+            s.setShiftStart(GsonUtil.getString(body, "shiftStart"));
+            s.setShiftEnd(GsonUtil.getString(body, "shiftEnd"));
 
             if (s.getStaffId() < 0 || s.getWorkDate() == null) {
-                resp.setStatus(400); resp.getWriter().write("{\"success\":false,\"message\":\"Missing required fields\"}"); return;
+                GsonUtil.error(resp, 400, "Missing required fields"); return;
             }
+
             int newId = scheduleDAO.insert(s);
-            resp.setStatus(201); resp.getWriter().write("{\"success\":true,\"scheduleId\":" + newId + "}");
+            JsonObject res = new JsonObject();
+            res.addProperty("scheduleId", newId);
+            GsonUtil.created(resp, res);
+
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 }

@@ -1,10 +1,11 @@
 package Controller;
 
-import Dao.ReportDAO;
 import Dao.ParkingSessionDAO;
+import Dao.ReportDAO;
 import Model.ParkingSession;
 import Model.Report;
-import Utils.JsonUtil;
+import Utils.GsonUtil;
+import com.google.gson.JsonObject;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -18,88 +19,102 @@ public class ReportServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
         Object uid = req.getAttribute("jwtUserId");
-        if (uid == null) { resp.setStatus(401); resp.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}"); return; }
+        if (uid == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+
         int userId = (int) uid;
         int roleId = (int) req.getAttribute("jwtRoleId");
+
         try {
             List<Report> list;
             if (roleId == 1)      list = reportDAO.findAll();
             else if (roleId == 2) list = reportDAO.findPending();
             else                  list = reportDAO.findByReporter(userId);
 
-            StringBuilder sb = new StringBuilder("{\"success\":true,\"data\":[");
-            for (int i = 0; i < list.size(); i++) {
-                if (i > 0) sb.append(",");
-                sb.append(enrichedJson(list.get(i)));
+            // Enrich từng report thêm plateNumber + checkinTime từ session
+            com.google.gson.JsonArray arr = new com.google.gson.JsonArray();
+            for (Report r : list) {
+                JsonObject obj = GsonUtil.GSON.toJsonTree(r).getAsJsonObject();
+
+                // Lấy thêm thông tin từ parking_sessions
+                try {
+                    ParkingSession s = sessionDAO.findById(r.getSessionId());
+                    obj.addProperty("plateNumber", s != null && s.getPlateNumber() != null ? s.getPlateNumber() : "");
+                    obj.addProperty("checkinTime", s != null && s.getCheckinTime() != null ? s.getCheckinTime() : "");
+                } catch (Exception ignored) {
+                    obj.addProperty("plateNumber", "");
+                    obj.addProperty("checkinTime", "");
+                }
+                arr.add(obj);
             }
-            sb.append("]}");
-            resp.setStatus(200); resp.getWriter().write(sb.toString());
+
+            JsonObject res = new JsonObject();
+            res.add("data", arr);
+            GsonUtil.ok(resp, res);
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("application/json;charset=UTF-8");
         Object uid = req.getAttribute("jwtUserId");
-        if (uid == null) { resp.setStatus(401); resp.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}"); return; }
-        int userId = (int) uid;
-        int roleId = (int) req.getAttribute("jwtRoleId");
-        String jwtUsername = (String) req.getAttribute("jwtUsername");
+        if (uid == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+
+        int userId     = (int) uid;
+        int roleId     = (int) req.getAttribute("jwtRoleId");
+        String jwtUser = (String) req.getAttribute("jwtUsername");
+
         try {
-            String body   = JsonUtil.readBody(req);
-            String action = JsonUtil.getString(body, "action");
+            JsonObject body   = GsonUtil.parseBody(req);
+            String action     = GsonUtil.getString(body, "action");
+
+            // Duyệt / từ chối report (manager only)
             if ("approve".equals(action)) {
-                if (roleId != 1) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return; }
-                int    reportId = JsonUtil.getInt(body, "reportId", -1);
-                String decision = JsonUtil.getString(body, "decision");
-                String note     = JsonUtil.getString(body, "note");
-                if (reportId < 0 || decision == null) { resp.setStatus(400); resp.getWriter().write("{\"success\":false,\"message\":\"Missing fields\"}"); return; }
+                if (roleId != 1) { GsonUtil.error(resp, 403, "Forbidden"); return; }
+
+                int    reportId = GsonUtil.getInt(body, "reportId", -1);
+                String decision = GsonUtil.getString(body, "decision");
+                String note     = GsonUtil.getString(body, "note");
+
+                if (reportId < 0 || decision == null) { GsonUtil.error(resp, 400, "Missing reportId or decision"); return; }
+
                 reportDAO.approve(reportId, userId, decision, note != null ? note : "");
-                resp.setStatus(200); resp.getWriter().write("{\"success\":true,\"reportId\":" + reportId + "}");
+
+                JsonObject res = new JsonObject();
+                res.addProperty("reportId", reportId);
+                GsonUtil.ok(resp, res);
                 return;
             }
-            int    vehicleId    = JsonUtil.getInt(body, "vehicleId", 0);
-            int    sessionId    = JsonUtil.getInt(body, "sessionId", -1);
-            String reportType   = JsonUtil.getString(body, "reportType");
-            String notes        = JsonUtil.getString(body, "notes");
-            String reporterName = JsonUtil.getString(body, "reporterName");
-            String reporterPhone= JsonUtil.getString(body, "reporterPhone");
-            if (sessionId < 0 || reportType == null) { resp.setStatus(400); resp.getWriter().write("{\"success\":false,\"message\":\"Missing sessionId or reportType\"}"); return; }
-            if (reporterName == null || reporterName.isBlank()) reporterName = jwtUsername != null ? jwtUsername : "Unknown";
-            Report r = new Report();
-            r.setReporterId(userId); r.setVehicleId(vehicleId); r.setSessionId(sessionId);
-            r.setReporterName(reporterName); r.setReporterPhone(reporterPhone != null ? reporterPhone : "");
-            r.setReportType(reportType); r.setNotes(notes != null ? notes : "");
-            int newId = reportDAO.insert(r);
-            resp.setStatus(201); resp.getWriter().write("{\"success\":true,\"reportId\":" + newId + "}");
-        } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
-        }
-    }
 
-    private String enrichedJson(Report r) {
-        String plate = "", checkinTime = "";
-        try {
-            ParkingSession s = sessionDAO.findById(r.getSessionId());
-            if (s != null) { plate = s.getPlateNumber() != null ? s.getPlateNumber() : ""; checkinTime = s.getCheckinTime() != null ? s.getCheckinTime() : ""; }
-        } catch (Exception ignored) {}
-        return "{\"reportId\":" + r.getReportId()
-            + ",\"reporterId\":" + r.getReporterId()
-            + ",\"vehicleId\":"  + r.getVehicleId()
-            + ",\"sessionId\":"  + r.getSessionId()
-            + ",\"plateNumber\":\"" + JsonUtil.escape(plate) + "\""
-            + ",\"checkinTime\":\"" + JsonUtil.escape(checkinTime) + "\""
-            + ",\"reporterName\":\"" + JsonUtil.escape(r.getReporterName()) + "\""
-            + ",\"reporterPhone\":\"" + JsonUtil.escape(r.getReporterPhone()) + "\""
-            + ",\"reportType\":\"" + JsonUtil.escape(r.getReportType()) + "\""
-            + ",\"notes\":\"" + JsonUtil.escape(r.getNotes()) + "\""
-            + ",\"status\":\"" + JsonUtil.escape(r.getStatus()) + "\""
-            + ",\"createdAt\":\"" + JsonUtil.escape(r.getCreatedAt()) + "\""
-            + "}";
+            // Tạo report mới
+            int    vehicleId    = GsonUtil.getInt(body, "vehicleId", 0);
+            int    sessionId    = GsonUtil.getInt(body, "sessionId", -1);
+            String reportType   = GsonUtil.getString(body, "reportType");
+            String notes        = GsonUtil.getString(body, "notes");
+            String reporterName = GsonUtil.getString(body, "reporterName");
+            String reporterPhone= GsonUtil.getString(body, "reporterPhone");
+
+            if (sessionId < 0 || reportType == null) { GsonUtil.error(resp, 400, "Thiếu sessionId hoặc reportType"); return; }
+            if (reporterName == null || reporterName.isBlank()) reporterName = jwtUser != null ? jwtUser : "Unknown";
+
+            Report r = new Report();
+            r.setReporterId(userId);
+            r.setVehicleId(vehicleId);
+            r.setSessionId(sessionId);
+            r.setReporterName(reporterName);
+            r.setReporterPhone(reporterPhone != null ? reporterPhone : "");
+            r.setReportType(reportType);
+            r.setNotes(notes != null ? notes : "");
+
+            int newId = reportDAO.insert(r);
+
+            JsonObject res = new JsonObject();
+            res.addProperty("reportId", newId);
+            GsonUtil.created(resp, res);
+        } catch (Exception e) {
+            GsonUtil.error(resp, 500, e.getMessage());
+        }
     }
 }

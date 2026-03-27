@@ -3,7 +3,8 @@ package Controller;
 import Dao.MembershipDAO;
 import Model.Membership;
 import Model.MembershipPlan;
-import Utils.JsonUtil;
+import Utils.GsonUtil;
+import com.google.gson.JsonObject;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -18,77 +19,80 @@ public class MembershipServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
         Object uid = req.getAttribute("jwtUserId");
         Object rid = req.getAttribute("jwtRoleId");
-        if (uid == null) { resp.setStatus(401); resp.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}"); return; }
+        if (uid == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+
         int userId = (int) uid;
         int roleId = (int) rid;
-        if (roleId != 3 && roleId != 1) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}"); return; }
+        if (roleId != 3 && roleId != 1) { GsonUtil.error(resp, 403, "Forbidden"); return; }
         if (roleId == 1) {
             String p = req.getParameter("userId");
             if (p != null && !p.isBlank()) try { userId = Integer.parseInt(p); } catch (Exception ignored) {}
         }
+
         try {
             List<MembershipPlan> plans = dao.findAllPlans();
             Membership active          = dao.findActiveByUser(userId);
 
-            StringBuilder plansJson = new StringBuilder("[");
-            for (int i = 0; i < plans.size(); i++) {
-                MembershipPlan p = plans.get(i);
-                if (i > 0) plansJson.append(",");
-                plansJson.append("{")
-                    .append("\"planId\":").append(p.getPlanId()).append(",")
-                    .append("\"name\":\"").append(JsonUtil.escape(p.getName())).append("\",")
-                    .append("\"durationDays\":").append(p.getDurationDays()).append(",")
-                    .append("\"price\":").append(p.getPrice()).append(",")
-                    .append("\"discountPct\":").append(p.getDiscountPct())
-                    .append("}");
-            }
-            plansJson.append("]");
+            // plans: Gson convert thẳng từ List
+            JsonObject res = new JsonObject();
+            res.add("plans", GsonUtil.GSON.toJsonTree(plans));
 
-            String activeJson = "null";
+            // active: thêm trường daysLeft và planName (không có trong model)
             if (active != null) {
                 long daysLeft = 0;
-                try { daysLeft = Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(active.getEndDate()))); } catch (Exception ignored) {}
+                try {
+                    daysLeft = Math.max(0, ChronoUnit.DAYS.between(
+                        LocalDate.now(), LocalDate.parse(active.getEndDate())));
+                } catch (Exception ignored) {}
+
                 MembershipPlan plan = dao.getPlanById(active.getPlanId());
-                String planName = plan != null ? plan.getName() : "";
-                activeJson = "{\"membershipId\":" + active.getMembershipId()
-                    + ",\"planId\":"     + active.getPlanId()
-                    + ",\"planName\":\"" + JsonUtil.escape(planName) + "\""
-                    + ",\"startDate\":\"" + JsonUtil.escape(active.getStartDate()) + "\""
-                    + ",\"endDate\":\""  + JsonUtil.escape(active.getEndDate())   + "\""
-                    + ",\"status\":\""   + JsonUtil.escape(active.getStatus())    + "\""
-                    + ",\"daysLeft\":"   + daysLeft + "}";
+
+                // Convert model sang JsonObject rồi thêm field bổ sung
+                JsonObject activeObj = GsonUtil.GSON.toJsonTree(active).getAsJsonObject();
+                activeObj.addProperty("daysLeft",  daysLeft);
+                activeObj.addProperty("planName",  plan != null ? plan.getName() : "");
+                res.add("active", activeObj);
+            } else {
+                res.add("active", com.google.gson.JsonNull.INSTANCE);
             }
-            resp.setStatus(200);
-            resp.getWriter().write("{\"success\":true,\"plans\":" + plansJson + ",\"active\":" + activeJson + "}");
+
+            GsonUtil.ok(resp, res);
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("application/json;charset=UTF-8");
         Object uid = req.getAttribute("jwtUserId");
         Object rid = req.getAttribute("jwtRoleId");
-        if (uid == null) { resp.setStatus(401); resp.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}"); return; }
+        if (uid == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
+        if ((int) rid != 3) { GsonUtil.error(resp, 403, "Chỉ customer mới được đăng ký"); return; }
+
         int userId = (int) uid;
-        if ((int) rid != 3) { resp.setStatus(403); resp.getWriter().write("{\"success\":false,\"message\":\"Chỉ customer mới được đăng ký\"}"); return; }
+
         try {
-            String body = JsonUtil.readBody(req);
-            int planId  = JsonUtil.getInt(body, "planId", -1);
-            if (planId < 0) { resp.setStatus(400); resp.getWriter().write("{\"success\":false,\"message\":\"Thiếu planId\"}"); return; }
-            Membership ex = dao.findActiveByUser(userId);
-            if (ex != null) { resp.setStatus(409); resp.getWriter().write("{\"success\":false,\"message\":\"Đang có gói active đến " + ex.getEndDate() + "\"}"); return; }
+            JsonObject body = GsonUtil.parseBody(req);
+            int planId      = GsonUtil.getInt(body, "planId", -1);
+            if (planId < 0) { GsonUtil.error(resp, 400, "Thiếu planId"); return; }
+
+            Membership existing = dao.findActiveByUser(userId);
+            if (existing != null) {
+                GsonUtil.error(resp, 409, "Đang có gói active đến " + existing.getEndDate());
+                return;
+            }
+
             int newId = dao.register(userId, planId);
-            if (newId < 0) { resp.setStatus(400); resp.getWriter().write("{\"success\":false,\"message\":\"Gói không tồn tại\"}"); return; }
-            resp.setStatus(201);
-            resp.getWriter().write("{\"success\":true,\"membershipId\":" + newId + "}");
+            if (newId < 0) { GsonUtil.error(resp, 400, "Gói không tồn tại"); return; }
+
+            JsonObject res = new JsonObject();
+            res.addProperty("membershipId", newId);
+            GsonUtil.created(resp, res);
         } catch (Exception e) {
-            resp.setStatus(500); resp.getWriter().write("{\"success\":false,\"message\":\"" + JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 }

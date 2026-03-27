@@ -2,7 +2,8 @@ package Controller;
 
 import Dao.*;
 import Model.*;
-import Utils.JsonUtil;
+import Utils.GsonUtil;
+import com.google.gson.JsonObject;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
@@ -18,50 +19,29 @@ public class CheckOutServlet extends HttpServlet {
     private final MembershipDAO     membershipDAO  = new MembershipDAO();
     private final VehicleDAO        vehicleDAO     = new VehicleDAO();
 
-    private static final DateTimeFormatter FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /** GET /staff/checkout?plate=30A-12345 — xem trước phí */
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
-
-        // FIX #4: null-check trước khi cast
         Object roleAttr = req.getAttribute("jwtRoleId");
-        if (roleAttr == null) {
-            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            resp.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}");
-            return;
-        }
+        if (roleAttr == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
         int roleId = (int) roleAttr;
-        if (roleId != 1 && roleId != 2) {
-            resp.setStatus(403);
-            resp.getWriter().write("{\"success\":false,\"message\":\"Forbidden\"}");
-            return;
-        }
+        if (roleId != 1 && roleId != 2) { GsonUtil.error(resp, 403, "Forbidden"); return; }
 
         String plate = req.getParameter("plate");
-        if (plate == null || plate.isBlank()) {
-            resp.setStatus(400);
-            resp.getWriter().write("{\"success\":false,\"message\":\"Thiếu biển số xe\"}");
-            return;
-        }
+        if (plate == null || plate.isBlank()) { GsonUtil.error(resp, 400, "Thiếu biển số xe"); return; }
 
         try {
             ParkingSession session = sessionDAO.findActiveByPlate(plate.trim().toUpperCase());
             if (session == null) {
-                resp.setStatus(404);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Không tìm thấy xe " +
-                        JsonUtil.escape(plate) + " đang gửi trong bãi\"}");
+                GsonUtil.error(resp, 404, "Không tìm thấy xe " + plate + " đang gửi trong bãi");
                 return;
             }
             FeeResult fee = calcFee(session);
-            resp.setStatus(200);
-            resp.getWriter().write(feeJson(session, fee));
+            GsonUtil.ok(resp, feeJson(session, fee));
         } catch (Exception e) {
-            resp.setStatus(500);
-            resp.getWriter().write("{\"success\":false,\"message\":\"" +
-                    JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 
@@ -69,35 +49,23 @@ public class CheckOutServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("application/json;charset=UTF-8");
 
-        // FIX #4: null-check trước khi cast
         Object roleAttr = req.getAttribute("jwtRoleId");
         Object userAttr = req.getAttribute("jwtUserId");
-        if (roleAttr == null || userAttr == null) {
-            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            resp.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}");
-            return;
-        }
+        if (roleAttr == null || userAttr == null) { GsonUtil.error(resp, 401, "Unauthorized"); return; }
 
         int roleId  = (int) roleAttr;
         int staffId = (int) userAttr;
-
-        if (roleId != 2) {
-            resp.setStatus(403);
-            resp.getWriter().write("{\"success\":false,\"message\":\"Chỉ nhân viên mới được check-out\"}");
-            return;
-        }
+        if (roleId != 2) { GsonUtil.error(resp, 403, "Chỉ nhân viên mới được check-out"); return; }
 
         try {
-            String body          = JsonUtil.readBody(req);
-            String plateNumber   = JsonUtil.getString(body, "plateNumber");
-            String paymentMethod = JsonUtil.getString(body, "paymentMethod");
-            String imgOut        = JsonUtil.getString(body, "vehicleImgOut");
+            JsonObject body      = GsonUtil.parseBody(req);
+            String plateNumber   = GsonUtil.getString(body, "plateNumber");
+            String paymentMethod = GsonUtil.getString(body, "paymentMethod");
+            String imgOut        = GsonUtil.getString(body, "vehicleImgOut");
 
             if (plateNumber == null || plateNumber.isBlank() || paymentMethod == null) {
-                resp.setStatus(400);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Thiếu plateNumber hoặc paymentMethod\"}");
+                GsonUtil.error(resp, 400, "Thiếu plateNumber hoặc paymentMethod");
                 return;
             }
 
@@ -105,23 +73,15 @@ public class CheckOutServlet extends HttpServlet {
 
             ParkingSession session = sessionDAO.findActiveByPlate(plateNumber);
             if (session == null) {
-                resp.setStatus(404);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Không tìm thấy xe " +
-                        JsonUtil.escape(plateNumber) + " đang gửi trong bãi\"}");
+                GsonUtil.error(resp, 404, "Không tìm thấy xe " + plateNumber + " đang gửi trong bãi");
                 return;
             }
 
             FeeResult fee = calcFee(session);
 
-            // 1. Cập nhật session → completed
             boolean updated = sessionDAO.checkOut(session.getSessionId(), staffId, imgOut != null ? imgOut : "");
-            if (!updated) {
-                resp.setStatus(409);
-                resp.getWriter().write("{\"success\":false,\"message\":\"Session đã được checkout rồi\"}");
-                return;
-            }
+            if (!updated) { GsonUtil.error(resp, 409, "Session đã được checkout rồi"); return; }
 
-            // 2. Tạo transaction
             Transaction t = new Transaction();
             t.setSessionId(session.getSessionId());
             t.setUserId(staffId);
@@ -134,36 +94,30 @@ public class CheckOutServlet extends HttpServlet {
             int transId = transactionDAO.insert(t);
             transactionDAO.markPaid(transId, paymentMethod);
 
-            resp.setStatus(200);
-            resp.getWriter().write(
-                    "{\"success\":true,"          +
-                            "\"transId\":"                + transId                               + "," +
-                            "\"sessionId\":"              + session.getSessionId()               + "," +
-                            "\"plateNumber\":\""          + JsonUtil.escape(plateNumber)         + "\"," +
-                            "\"durationMinutes\":"        + fee.durationMinutes                  + "," +
-                            "\"baseFee\":"                + fee.baseFee                          + "," +
-                            "\"discountAmount\":"         + fee.discountAmount                   + "," +
-                            "\"finalFee\":"               + fee.finalFee                         + "," +
-                            "\"paymentMethod\":\""        + JsonUtil.escape(paymentMethod)       + "\"," +
-                            "\"feeType\":\""              + JsonUtil.escape(fee.feeType)         + "\"}"
-            );
+            JsonObject res = new JsonObject();
+            res.addProperty("transId",         transId);
+            res.addProperty("sessionId",        session.getSessionId());
+            res.addProperty("plateNumber",      plateNumber);
+            res.addProperty("durationMinutes",  fee.durationMinutes);
+            res.addProperty("baseFee",          fee.baseFee);
+            res.addProperty("discountAmount",   fee.discountAmount);
+            res.addProperty("finalFee",         fee.finalFee);
+            res.addProperty("paymentMethod",    paymentMethod);
+            res.addProperty("feeType",          fee.feeType);
+            GsonUtil.ok(resp, res);
+
         } catch (Exception e) {
-            resp.setStatus(500);
-            resp.getWriter().write("{\"success\":false,\"message\":\"" +
-                    JsonUtil.escape(e.getMessage()) + "\"}");
+            GsonUtil.error(resp, 500, e.getMessage());
         }
     }
 
-    // ── Tính phí ──────────────────────────────────────────────
     private FeeResult calcFee(ParkingSession session) throws Exception {
         FeeResult r = new FeeResult();
 
-        // Duration
         LocalDateTime checkin = LocalDateTime.parse(session.getCheckinTime(), FMT);
         LocalDateTime now     = LocalDateTime.now();
         r.durationMinutes     = (int) Math.max(1, Duration.between(checkin, now).toMinutes());
 
-        // Fee type
         LocalTime t = now.toLocalTime();
         if (t.isAfter(LocalTime.of(22, 0)) || t.isBefore(LocalTime.of(6, 0)))
             r.feeType = "overnight";
@@ -172,14 +126,12 @@ public class CheckOutServlet extends HttpServlet {
         else
             r.feeType = "normal";
 
-        // Vehicle type
         int typeId = 1;
         if (session.getVehicleId() > 0) {
             RegisteredVehicle v = vehicleDAO.findByPlate(session.getPlateNumber());
             if (v != null) typeId = v.getTypeId();
         }
 
-        // Pricing rule (fallback chain: feeType → normal → default 5000/60min)
         PricingRule rule = pricingDAO.findApplicable(session.getLotId(), typeId, r.feeType);
         if (rule == null) rule = pricingDAO.findApplicable(session.getLotId(), typeId, "normal");
 
@@ -192,12 +144,9 @@ public class CheckOutServlet extends HttpServlet {
             r.ruleId      = rule.getRuleId();
         }
 
-        // Base fee
         int blocks = (int) Math.ceil((double) r.durationMinutes / blockMinutes);
         r.baseFee  = Math.min(blocks * pricePerBlock, maxDailyFee);
 
-        // FIX #3: Dùng findById(membershipId) thay vì findActiveByUser(membershipId)
-        // session.getMembershipId() là ID của bản ghi membership, không phải userId
         if (session.getMembershipId() > 0) {
             Membership m = membershipDAO.findById(session.getMembershipId());
             if (m != null) {
@@ -211,19 +160,20 @@ public class CheckOutServlet extends HttpServlet {
         return r;
     }
 
-    private String feeJson(ParkingSession s, FeeResult fee) {
-        return "{\"success\":true,"          +
-                "\"sessionId\":"                 + s.getSessionId()                     + "," +
-                "\"plateNumber\":\""             + JsonUtil.escape(s.getPlateNumber())  + "\"," +
-                "\"lotId\":"                     + s.getLotId()                         + "," +
-                "\"checkinTime\":\""             + JsonUtil.escape(s.getCheckinTime())  + "\"," +
-                "\"durationMinutes\":"           + fee.durationMinutes                  + "," +
-                "\"feeType\":\""                 + JsonUtil.escape(fee.feeType)         + "\"," +
-                "\"baseFee\":"                   + fee.baseFee                          + "," +
-                "\"discountPct\":"               + fee.discountPct                      + "," +
-                "\"discountAmount\":"            + fee.discountAmount                   + "," +
-                "\"hasMembership\":"             + fee.hasMembership                    + "," +
-                "\"finalFee\":"                  + fee.finalFee                         + "}";
+    private JsonObject feeJson(ParkingSession s, FeeResult fee) {
+        JsonObject o = new JsonObject();
+        o.addProperty("sessionId",       s.getSessionId());
+        o.addProperty("plateNumber",     s.getPlateNumber());
+        o.addProperty("lotId",           s.getLotId());
+        o.addProperty("checkinTime",     s.getCheckinTime());
+        o.addProperty("durationMinutes", fee.durationMinutes);
+        o.addProperty("feeType",         fee.feeType);
+        o.addProperty("baseFee",         fee.baseFee);
+        o.addProperty("discountPct",     fee.discountPct);
+        o.addProperty("discountAmount",  fee.discountAmount);
+        o.addProperty("hasMembership",   fee.hasMembership);
+        o.addProperty("finalFee",        fee.finalFee);
+        return o;
     }
 
     static class FeeResult {
